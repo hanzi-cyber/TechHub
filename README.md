@@ -1,6 +1,6 @@
 # TechHub 技术社区
 
-一个基于 **SpringBoot 3 + MyBatis-Plus + MySQL + Redis** 的技术问答/内容社区,秋招项目。
+一个基于 **SpringBoot 3 + MyBatis-Plus + MySQL + Redis** 的技术问答/内容社区项目。
 
 ## 技术栈
 
@@ -74,18 +74,3 @@ docker compose up -d
 cd D:/MyJavaProject/TechHub
 mvn spring-boot:run
 ```
-
-启动后访问:http://localhost:8080/api/health ,返回 `{"code":200,"message":"成功","data":"ok"}` 即成功。
-
-## 开发进度
-
-- [x] 项目骨架 + 统一返回/异常 + 实体/Mapper + 数据库脚本
-- [ ] 用户模块(注册/登录 JWT + Redis)
-- [ ] 帖子模块(发帖/列表/详情)
-- [ ] 评论模块(多级评论)
-- [ ] 点赞/收藏/关注 + Redis 计数
-- [ ] 消息通知(MQ)
-- [ ] 热门榜单/搜索
-- [ ] AI Agent 扩展(摘要/问答/审核/推荐)
-
-详细设计见对话记录中的《数据库表设计 + 索引设计》。
