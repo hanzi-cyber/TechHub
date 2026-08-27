@@ -1,7 +1,10 @@
 package com.techhub.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.util.List;
@@ -10,6 +13,9 @@ import java.util.List;
  * 发布/编辑帖子请求参数
  */
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class SavePostDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;

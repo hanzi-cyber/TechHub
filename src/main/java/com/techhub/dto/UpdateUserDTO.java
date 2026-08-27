@@ -1,6 +1,9 @@
 package com.techhub.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
@@ -8,6 +11,9 @@ import java.io.Serializable;
  * 更新当前用户资料请求参数
  */
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class UpdateUserDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;

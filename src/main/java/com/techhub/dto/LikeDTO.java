@@ -1,7 +1,10 @@
 package com.techhub.dto;
 
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
@@ -9,6 +12,9 @@ import java.io.Serializable;
  * 点赞请求参数
  */
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class LikeDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
