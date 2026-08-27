@@ -10,5 +10,4 @@ import org.springframework.stereotype.Component;
 public class JwtProperties {
     private String userSecretKey;
     private long userTtl;
-    private String userTokenName;
 }

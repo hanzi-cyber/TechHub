@@ -41,8 +41,11 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        //1、从请求头中获取令牌
-        String token = request.getHeader(jwtProperties.getUserTokenName());
+        //1、从请求头中获取令牌(业界标准:Authorization: Bearer <token>)
+        String token = request.getHeader("Authorization");
+        if (token != null && token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
 
         //2、校验令牌
         try {
@@ -58,5 +61,13 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
             response.setStatus(401);
             return false;
         }
+    }
+
+    /**
+     * 请求结束后清理 ThreadLocal,防止线程池复用线程时串用户
+     */
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        BaseContext.removeCurrentId();
     }
 }
