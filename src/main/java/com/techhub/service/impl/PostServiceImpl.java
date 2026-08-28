@@ -132,6 +132,26 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         return pageResult;
     }
 
+    /**
+     * 根据ID获取帖子
+     *
+     * @param id 帖子ID
+     * @return 帖子VO
+     */
+
+    @Override
+    public PostVO getPostById(Long id) {
+        Post post = getById(id);
+        if (post == null || post.getStatus() != POST_STATUS_PUBLISHED) {
+            return null;
+        }
+        PostVO postVO = new PostVO();
+        BeanUtils.copyProperties(post, postVO);
+        postVO.setAuthor(userService.getUserById(post.getUserId()));
+        postVO.setTags(postTagMapper.getTagsByPostId(id));
+        return postVO;
+    }
+
     /** 返回空的分页结果 */
     private PageResult<PostVO> emptyPage(Integer pageNum, Integer pageSize) {
         PageResult<PostVO> empty = new PageResult<>();

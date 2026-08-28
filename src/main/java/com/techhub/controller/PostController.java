@@ -6,10 +6,7 @@ import com.techhub.enumsort.SortType;
 import com.techhub.service.IPostService;
 import com.techhub.vo.PostVO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -34,5 +31,10 @@ public class PostController {
                                                @RequestParam(required = false) Integer tagId) {
         PageResult<PostVO> pageResult = postService.getPosts(pageNum, pageSize, sort, keyword, tagId);
         return Result.success(pageResult);
+    }
+    @GetMapping("/{id}")
+    public Result<PostVO> getPostById(@PathVariable Long id) {
+        PostVO postVO = postService.getPostById(id);
+        return Result.success(postVO);
     }
 }

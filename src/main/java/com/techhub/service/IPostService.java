@@ -8,4 +8,6 @@ import com.techhub.vo.PostVO;
 
 public interface IPostService extends IService<Post> {
     PageResult<PostVO> getPosts(Integer pageNum, Integer pageSize, SortType sort, String keyword, Integer tagId);
+
+    PostVO getPostById(Long id);
 }
