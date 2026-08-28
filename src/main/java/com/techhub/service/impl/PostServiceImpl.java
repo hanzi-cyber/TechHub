@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.techhub.common.PageResult;
+import com.techhub.context.BaseContext;
+import com.techhub.dto.SavePostDTO;
 import com.techhub.entity.Post;
 import com.techhub.entity.PostTag;
 import com.techhub.entity.Tag;
@@ -13,6 +15,7 @@ import com.techhub.mapper.PostMapper;
 import com.techhub.mapper.PostTagMapper;
 import com.techhub.mapper.TagMapper;
 import com.techhub.service.IPostService;
+import com.techhub.service.ITagService;
 import com.techhub.service.IUserService;
 import com.techhub.vo.PostVO;
 import com.techhub.vo.TagVO;
@@ -20,7 +23,9 @@ import com.techhub.vo.UserVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,6 +42,8 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
     private PostTagMapper postTagMapper;
     @Autowired
     private TagMapper tagMapper;
+    @Autowired
+    private ITagService tagService;
 
     /**
      * 分页查询帖子列表(首页/搜索)
@@ -149,6 +156,59 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         BeanUtils.copyProperties(post, postVO);
         postVO.setAuthor(userService.getUserById(post.getUserId()));
         postVO.setTags(postTagMapper.getTagsByPostId(id));
+        return postVO;
+    }
+
+    /**
+     * 创建帖子
+     *
+     * @param savePostDTO 帖子DTO
+     * @return 帖子VO
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PostVO createPost(SavePostDTO savePostDTO) {
+        Long userId = BaseContext.getCurrentId();
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1、保存帖子主记录(save 后 MP 会把自增 id 回填到 post.id)
+        Post post = new Post();
+        BeanUtils.copyProperties(savePostDTO, post);
+        post.setUserId(userId);
+        post.setStatus(POST_STATUS_PUBLISHED);
+        post.setViewCount(0);
+        post.setLikeCount(0);
+        post.setCommentCount(0);
+        post.setCollectCount(0);
+        post.setHotScore(0L);
+        post.setIsTop(0);
+        post.setCreatedAt(now);
+        post.setUpdatedAt(now);
+        post.setPublishedAt(now);
+        this.save(post);
+
+        // 2、保存帖子-标签关联
+        List<TagVO> tagVOs = new ArrayList<>();
+        if (savePostDTO.getTagIds() != null && !savePostDTO.getTagIds().isEmpty()) {
+            List<Tag> tags = tagMapper.selectBatchIds(savePostDTO.getTagIds());
+            for (Tag tag : tags) {
+                PostTag postTag = new PostTag();
+                postTag.setPostId(post.getId());
+                postTag.setTagId(tag.getId());
+                postTagMapper.insert(postTag);
+
+                TagVO tagVO = new TagVO();
+                BeanUtils.copyProperties(tag, tagVO);
+                tagVOs.add(tagVO);
+            }
+        }
+
+        // 3、组装返回
+        PostVO postVO = new PostVO();
+        BeanUtils.copyProperties(post, postVO);
+        UserVO author = userService.getUserById(userId);
+        postVO.setAuthor(author);
+        postVO.setTags(tagVOs);
         return postVO;
     }
 

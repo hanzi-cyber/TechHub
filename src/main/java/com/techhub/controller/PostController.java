@@ -2,6 +2,7 @@ package com.techhub.controller;
 
 import com.techhub.common.PageResult;
 import com.techhub.common.Result;
+import com.techhub.dto.SavePostDTO;
 import com.techhub.enumsort.SortType;
 import com.techhub.service.IPostService;
 import com.techhub.vo.PostVO;
@@ -32,9 +33,41 @@ public class PostController {
         PageResult<PostVO> pageResult = postService.getPosts(pageNum, pageSize, sort, keyword, tagId);
         return Result.success(pageResult);
     }
+
+    /**
+     * 根据ID获取帖子详情
+     * @param id
+     * @return
+     */
     @GetMapping("/{id}")
     public Result<PostVO> getPostById(@PathVariable Long id) {
         PostVO postVO = postService.getPostById(id);
         return Result.success(postVO);
     }
+    /**
+     * 创建新帖子
+     * @param savePostDTO
+     * @return
+     */
+    @PostMapping
+    public Result<PostVO> createPost(@RequestBody SavePostDTO savePostDTO) {
+        PostVO createdPost = postService.createPost(savePostDTO);
+        return Result.success(createdPost);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
