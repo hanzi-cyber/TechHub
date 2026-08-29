@@ -66,6 +66,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         return userVO;
     }
 
+
     @Override
     public UserVO updateUser(UpdateUserDTO updateUserDTO) {
         Long userId = BaseContext.getCurrentId();
@@ -126,10 +127,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
     }
 
+
     @Override
     public PageResult<PostVO> getUserPosts(Long userId, Integer pageNum, Integer pageSize) {
         // 1、分页查询该用户已发布的帖子,置顶优先、再按创建时间倒序
         Page<Post> page = postMapper.selectPage(
+
                 new Page<>(pageNum, pageSize),
                 new LambdaQueryWrapper<Post>()
                         .eq(Post::getUserId, userId)
@@ -194,6 +197,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         return result;
     }
 
+    /**
+     * 获取用户粉丝列表
+     * @param userId 用户ID
+     * @param pageNum 页码,从1开始
+     * @param pageSize 每页条数
+     * @return
+     */
     @Override
     public PageResult<UserVO> getFollowers(Long userId, Integer pageNum, Integer pageSize) {
         // 粉丝 = 被关注者(followeeId)等于该用户的关注关系
@@ -207,6 +217,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         return buildUserPageResult(page, Follow::getUserId);
     }
 
+    /**
+     * 获取用户关注列表
+     * @param userId 用户ID
+     * @param pageNum 页码,从1开始
+     * @param pageSize 每页条数
+     * @return
+     */
     @Override
     public PageResult<UserVO> getFollowing(Long userId, Integer pageNum, Integer pageSize) {
         // 关注 = 关注者(userId)等于该用户的关注关系
