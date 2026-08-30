@@ -33,4 +33,26 @@ public class CommentController {
         CommentVO commentVO = commentService.createComment(postId, dto);
         return Result.success(commentVO);
     }
+    /**
+     * 删除评论
+     */
+    @DeleteMapping("/comments/{id}")
+    public Result<Void> deleteCommentById(@PathVariable Long id) {
+        commentService.deleteCommentById(id);
+        return Result.success();
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }

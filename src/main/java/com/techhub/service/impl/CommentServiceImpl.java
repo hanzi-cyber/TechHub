@@ -30,6 +30,8 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
 
     /** 评论状态:1正常 */
     private static final int COMMENT_STATUS_NORMAL = 1;
+    /** 评论状态:0已删除 */
+    private static final int COMMENT_STATUS_DELETE = 0;
 
     /** 帖子状态:1已发布 */
     private static final int POST_STATUS_PUBLISHED = 1;
@@ -159,6 +161,44 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
 
         // 5、组装返回(评论者 + 被回复者)
         return buildVO(comment);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCommentById(Long id) {
+        // 1、评论必须存在且未删除
+        Comment comment = getById(id);
+        if (comment == null || comment.getStatus() != COMMENT_STATUS_NORMAL) {
+            throw new BusinessException("评论不存在或已删除");
+        }
+
+        // 2、只能删自己的评论
+        if (!comment.getUserId().equals(BaseContext.getCurrentId())) {
+            throw new BusinessException("无权删除他人评论");
+        }
+
+        // 3、软删当前评论
+        comment.setStatus(COMMENT_STATUS_DELETE);
+        updateById(comment);
+
+        // 4、删的是楼层时,连带软删其楼中楼回复
+        int deletedCount = 1;
+        boolean isFloor = comment.getParentId() != null && comment.getParentId() == ROOT_PARENT_ID;
+        if (isFloor) {
+            long replyCount = count(new LambdaQueryWrapper<Comment>()
+                    .eq(Comment::getParentId, id)
+                    .eq(Comment::getStatus, COMMENT_STATUS_NORMAL));
+            update(new UpdateWrapper<Comment>()
+                    .eq("parent_id", id)
+                    .eq("status", COMMENT_STATUS_NORMAL)
+                    .set("status", COMMENT_STATUS_DELETE));
+            deletedCount += (int) replyCount;
+        }
+
+        // 5、帖子评论数减去实际删除条数(原子自减,避免并发丢失更新)
+        postMapper.update(null, new UpdateWrapper<Post>()
+                .eq("id", comment.getPostId())
+                .setSql("comment_count = comment_count - " + deletedCount));
     }
 
     /** 批量查用户,建立 id -> UserVO 映射(去重) */

@@ -17,4 +17,11 @@ public interface ICommentService extends IService<Comment> {
      * @return 新评论VO(含评论者与被回复者信息)
      */
     CommentVO createComment(Long postId, SaveCommentDTO dto);
+
+    /**
+     * 删除评论(软删,仅作者本人可删;删楼层时连带软删其楼中楼回复)
+     *
+     * @param id 评论ID
+     */
+    void deleteCommentById(Long id);
 }
