@@ -6,11 +6,15 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.techhub.common.PageResult;
 import com.techhub.context.BaseContext;
 import com.techhub.dto.SavePostDTO;
+import com.techhub.entity.CollectRecord;
+import com.techhub.entity.LikeRecord;
 import com.techhub.entity.Post;
 import com.techhub.entity.PostTag;
 import com.techhub.entity.Tag;
 import com.techhub.entity.User;
 import com.techhub.enumsort.SortType;
+import com.techhub.mapper.CollectRecordMapper;
+import com.techhub.mapper.LikeRecordMapper;
 import com.techhub.mapper.PostMapper;
 import com.techhub.mapper.PostTagMapper;
 import com.techhub.mapper.TagMapper;
@@ -34,6 +38,12 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
 
     private static final int POST_STATUS_PUBLISHED = 1;
 
+    /** 点赞目标类型:1帖子 */
+    private static final int LIKE_TARGET_POST = 1;
+
+    /** 点赞/收藏记录有效状态:1有效 */
+    private static final int RECORD_ACTIVE = 1;
+
     @Autowired
     private PostMapper postMapper;
     @Autowired
@@ -44,6 +54,10 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
     private TagMapper tagMapper;
     @Autowired
     private ITagService tagService;
+    @Autowired
+    private LikeRecordMapper likeRecordMapper;
+    @Autowired
+    private CollectRecordMapper collectRecordMapper;
 
     /**
      * 分页查询帖子列表(首页/搜索)
@@ -145,7 +159,6 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
      * @param id 帖子ID
      * @return 帖子VO
      */
-
     @Override
     public PostVO getPostById(Long id) {
         Post post = getById(id);
@@ -156,7 +169,35 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         BeanUtils.copyProperties(post, postVO);
         postVO.setAuthor(userService.getUserById(post.getUserId()));
         postVO.setTags(postTagMapper.getTagsByPostId(id));
+        // 当前用户是否已点赞/已收藏(未登录则为 false)
+        postVO.setLiked(isLikedByCurrentUser(id));
+        postVO.setCollected(isCollectedByCurrentUser(id));
         return postVO;
+    }
+
+    /** 当前用户是否已点赞该帖子 */
+    private boolean isLikedByCurrentUser(Long postId) {
+        Long userId = BaseContext.getCurrentId();
+        if (userId == null) {
+            return false;
+        }
+        return likeRecordMapper.selectCount(new LambdaQueryWrapper<LikeRecord>()
+                .eq(LikeRecord::getUserId, userId)
+                .eq(LikeRecord::getTargetType, LIKE_TARGET_POST)
+                .eq(LikeRecord::getTargetId, postId)
+                .eq(LikeRecord::getStatus, RECORD_ACTIVE)) > 0;
+    }
+
+    /** 当前用户是否已收藏该帖子 */
+    private boolean isCollectedByCurrentUser(Long postId) {
+        Long userId = BaseContext.getCurrentId();
+        if (userId == null) {
+            return false;
+        }
+        return collectRecordMapper.selectCount(new LambdaQueryWrapper<CollectRecord>()
+                .eq(CollectRecord::getUserId, userId)
+                .eq(CollectRecord::getPostId, postId)
+                .eq(CollectRecord::getStatus, RECORD_ACTIVE)) > 0;
     }
 
     /**
