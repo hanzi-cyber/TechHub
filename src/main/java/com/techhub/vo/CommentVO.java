@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 评论返回结果
@@ -41,4 +42,10 @@ public class CommentVO implements Serializable {
 
     /** 评论者信息 */
     private UserVO user;
+
+    /** 被回复用户信息(楼中楼 @ 某人) */
+    private UserVO replyToUser;
+
+    /** 楼中楼回复列表(仅一级评论有值,按时间正序) */
+    private List<CommentVO> replies;
 }
