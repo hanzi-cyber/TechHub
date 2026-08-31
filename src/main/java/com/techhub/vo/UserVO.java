@@ -35,5 +35,8 @@ public class UserVO implements Serializable {
     /** 状态:1正常 0封禁 */
     private Integer status;
 
+    /** 当前登录用户是否已关注该用户(未登录或看自己时为 null) */
+    private Boolean followed;
+
     private LocalDateTime createdAt;
 }

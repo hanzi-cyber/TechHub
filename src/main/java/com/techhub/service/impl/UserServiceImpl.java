@@ -63,6 +63,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         User user = getById(id);
         UserVO userVO = new UserVO();
         BeanUtils.copyProperties(user, userVO);
+
+        // 填充当前登录用户是否已关注该用户(未登录、看自己、用户不存在时保持 null)
+        Long currentId = BaseContext.getCurrentId();
+        if (user != null && currentId != null && !currentId.equals(id)) {
+            long cnt = followMapper.selectCount(new LambdaQueryWrapper<Follow>()
+                    .eq(Follow::getUserId, currentId)
+                    .eq(Follow::getFolloweeId, id)
+                    .eq(Follow::getStatus, FOLLOW_STATUS_ACTIVE));
+            userVO.setFollowed(cnt > 0);
+        }
         return userVO;
     }
 
