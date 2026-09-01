@@ -12,6 +12,7 @@ import com.techhub.mapper.CommentMapper;
 import com.techhub.mapper.LikeRecordMapper;
 import com.techhub.mapper.PostMapper;
 import com.techhub.service.ILikeRecordService;
+import com.techhub.service.IPostService;
 import com.techhub.vo.LikeResultVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,8 @@ public class LikeRecordServiceImpl extends ServiceImpl<LikeRecordMapper, LikeRec
     private PostMapper postMapper;
     @Autowired
     private CommentMapper commentMapper;
+    @Autowired
+    private IPostService postService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -42,6 +45,7 @@ public class LikeRecordServiceImpl extends ServiceImpl<LikeRecordMapper, LikeRec
         // 只有真正发生状态变化(新点赞 / 由取消恢复)才 +1
         if (affected > 0) {
             updateTargetCount(likeDTO.getTargetType(), likeDTO.getTargetId(), 1);
+            evictPostCacheIfNeeded(likeDTO.getTargetType(), likeDTO.getTargetId());
         }
         return new LikeResultVO(true, readTargetCount(likeDTO.getTargetType(), likeDTO.getTargetId()));
     }
@@ -56,6 +60,7 @@ public class LikeRecordServiceImpl extends ServiceImpl<LikeRecordMapper, LikeRec
         int affected = likeRecordMapper.unlike(userId, likeDTO.getTargetType(), likeDTO.getTargetId());
         if (affected > 0) {
             updateTargetCount(likeDTO.getTargetType(), likeDTO.getTargetId(), -1);
+            evictPostCacheIfNeeded(likeDTO.getTargetType(), likeDTO.getTargetId());
         }
         return new LikeResultVO(false, readTargetCount(likeDTO.getTargetType(), likeDTO.getTargetId()));
     }
@@ -97,5 +102,12 @@ public class LikeRecordServiceImpl extends ServiceImpl<LikeRecordMapper, LikeRec
             throw new BusinessException("评论不存在");
         }
         return comment.getLikeCount();
+    }
+
+    /** 帖子点赞数变化时,失效帖子详情缓存 */
+    private void evictPostCacheIfNeeded(Integer targetType, Long targetId) {
+        if (POST_TYPE.equals(targetType)) {
+            postService.evictPostCache(targetId);
+        }
     }
 }

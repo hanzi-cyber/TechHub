@@ -3,7 +3,10 @@ package com.techhub.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techhub.common.PageResult;
+import com.techhub.common.RedisConstants;
+import com.techhub.common.exception.BusinessException;
 import com.techhub.context.BaseContext;
 import com.techhub.dto.SavePostDTO;
 import com.techhub.entity.CollectRecord;
@@ -24,15 +27,20 @@ import com.techhub.service.IUserService;
 import com.techhub.vo.PostVO;
 import com.techhub.vo.TagVO;
 import com.techhub.vo.UserVO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IPostService {
 
@@ -58,6 +66,10 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
     private LikeRecordMapper likeRecordMapper;
     @Autowired
     private CollectRecordMapper collectRecordMapper;
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     /**
      * 分页查询帖子列表(首页/搜索)
@@ -154,25 +166,35 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
     }
 
     /**
-     * 根据ID获取帖子
+     * 根据ID获取帖子(带缓存:cache-aside 读模式 + 防击穿/穿透/雪崩)
      *
      * @param id 帖子ID
      * @return 帖子VO
      */
     @Override
     public PostVO getPostById(Long id) {
-        Post post = getById(id);
-        if (post == null || post.getStatus() != POST_STATUS_PUBLISHED) {
-            return null;
+        String key = RedisConstants.POST_DETAIL_KEY_PREFIX + id;
+        // 1、先查缓存
+        String json = stringRedisTemplate.opsForValue().get(key);
+        if (json != null) {
+            // 命中空值哨兵:帖子确认不存在,防穿透,直接返回
+            if (RedisConstants.EMPTY_CACHE_VALUE.equals(json)) {
+                return null;
+            }
+            PostVO vo = deserialize(json);
+            if (vo != null) {
+                // 用户相关字段不入缓存,命中的帖子在这里现查补齐
+                fillUserSpecific(vo, id);
+                return vo;
+            }
+            // 反序列化失败(脏缓存)则落到下面回源重建
         }
-        PostVO postVO = new PostVO();
-        BeanUtils.copyProperties(post, postVO);
-        postVO.setAuthor(userService.getUserById(post.getUserId()));
-        postVO.setTags(postTagMapper.getTagsByPostId(id));
-        // 当前用户是否已点赞/已收藏(未登录则为 false)
-        postVO.setLiked(isLikedByCurrentUser(id));
-        postVO.setCollected(isCollectedByCurrentUser(id));
-        return postVO;
+        // 2、缓存未命中:互斥锁防击穿 + 回源重建
+        PostVO vo = queryWithMutexLock(id);
+        if (vo != null) {
+            fillUserSpecific(vo, id);
+        }
+        return vo;
     }
 
     /** 当前用户是否已点赞该帖子 */
@@ -261,5 +283,111 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         empty.setPageSize(pageSize);
         empty.setRecords(Collections.emptyList());
         return empty;
+    }
+
+    // ==================== 帖子详情缓存(cache-aside) ====================
+
+    @Override
+    public void evictPostCache(Long postId) {
+        if (postId == null) {
+            return;
+        }
+        stringRedisTemplate.delete(RedisConstants.POST_DETAIL_KEY_PREFIX + postId);
+    }
+
+    /** 回源查库并组装帖子 VO(不含 liked/collected 等用户相关字段) */
+    private PostVO buildPostVO(Long id) {
+        Post post = getById(id);
+        if (post == null || post.getStatus() != POST_STATUS_PUBLISHED) {
+            return null;
+        }
+        PostVO postVO = new PostVO();
+        BeanUtils.copyProperties(post, postVO);
+        postVO.setAuthor(userService.getUserById(post.getUserId()));
+        postVO.setTags(postTagMapper.getTagsByPostId(id));
+        return postVO;
+    }
+
+    /**
+     * 互斥锁防击穿:抢锁 → 双检 → 回源 → 写缓存。
+     * 抢不到锁就短暂等待重试;重试耗尽直接回源兜底(不写缓存),保证可用性。
+     */
+    private PostVO queryWithMutexLock(Long id) {
+        String key = RedisConstants.POST_DETAIL_KEY_PREFIX + id;
+        String lockKey = RedisConstants.POST_DETAIL_LOCK_KEY_PREFIX + id;
+        for (int i = 0; i < RedisConstants.MAX_RETRY; i++) {
+            Boolean locked = stringRedisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, "1", Duration.ofSeconds(RedisConstants.LOCK_TTL_SECONDS));
+            if (Boolean.TRUE.equals(locked)) {
+                try {
+                    // 双检:拿到锁的线程可能发现缓存已被别的线程重建
+                    String json = stringRedisTemplate.opsForValue().get(key);
+                    if (json != null) {
+                        return RedisConstants.EMPTY_CACHE_VALUE.equals(json) ? null : deserialize(json);
+                    }
+                    PostVO vo = buildPostVO(id);
+                    cachePost(id, vo);
+                    return vo;
+                } finally {
+                    stringRedisTemplate.delete(lockKey);
+                }
+            }
+            // 没抢到锁,短暂等待后重试
+            try {
+                Thread.sleep(RedisConstants.RETRY_SLEEP_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        // 重试耗尽:直接回源兜底,不写缓存
+        return buildPostVO(id);
+    }
+
+    /** 写缓存:帖子不存在时缓存空值哨兵(防穿透);存在时带随机 TTL(防雪崩) */
+    private void cachePost(Long id, PostVO vo) {
+        String key = RedisConstants.POST_DETAIL_KEY_PREFIX + id;
+        if (vo == null) {
+            stringRedisTemplate.opsForValue().set(key, RedisConstants.EMPTY_CACHE_VALUE,
+                    Duration.ofSeconds(RedisConstants.EMPTY_CACHE_TTL_SECONDS));
+            return;
+        }
+        // 用户相关字段不入缓存,避免 A 用户的状态污染 B 用户
+        clearUserSpecific(vo);
+        Duration ttl = Duration.ofMinutes(RedisConstants.POST_DETAIL_TTL_MINUTES)
+                .plusSeconds(ThreadLocalRandom.current().nextInt(RedisConstants.POST_DETAIL_TTL_JITTER_SECONDS + 1));
+        stringRedisTemplate.opsForValue().set(key, serialize(vo), ttl);
+    }
+
+    /** 缓存命中的帖子补齐用户相关字段(点赞/收藏状态,现查,不入缓存) */
+    private void fillUserSpecific(PostVO vo, Long postId) {
+        vo.setLiked(isLikedByCurrentUser(postId));
+        vo.setCollected(isCollectedByCurrentUser(postId));
+    }
+
+    /** 写缓存前清空用户相关字段 */
+    private void clearUserSpecific(PostVO vo) {
+        vo.setLiked(null);
+        vo.setCollected(null);
+        if (vo.getAuthor() != null) {
+            vo.getAuthor().setFollowed(null);
+        }
+    }
+
+    private String serialize(PostVO vo) {
+        try {
+            return objectMapper.writeValueAsString(vo);
+        } catch (Exception e) {
+            throw new BusinessException("帖子缓存序列化失败");
+        }
+    }
+
+    private PostVO deserialize(String json) {
+        try {
+            return objectMapper.readValue(json, PostVO.class);
+        } catch (Exception e) {
+            log.warn("帖子缓存反序列化失败,回源重建: {}", e.getMessage());
+            return null;
+        }
     }
 }

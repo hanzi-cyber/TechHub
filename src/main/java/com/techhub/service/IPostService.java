@@ -13,4 +13,11 @@ public interface IPostService extends IService<Post> {
     PostVO getPostById(Long id);
 
     PostVO createPost(SavePostDTO savePostDTO);
+
+    /**
+     * 失效帖子详情缓存(帖子数据变更时调用,如点赞/收藏/评论数变化)
+     *
+     * @param postId 帖子ID
+     */
+    void evictPostCache(Long postId);
 }

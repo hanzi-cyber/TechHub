@@ -15,10 +15,9 @@
     <artifactId>techhub</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>techhub</name>
-    <description>技术社区 - 秋招项目</description>
+    <description>技术社区</description>
 
     <properties>
-        <!-- 本机 JDK 是 21,这里用 17 编译目标(秋招公司主流是 17);想用 21 改成 21 即可 -->
         <java.version>17</java.version>
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
     </properties>
