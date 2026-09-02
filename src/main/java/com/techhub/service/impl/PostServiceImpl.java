@@ -1,6 +1,7 @@
 package com.techhub.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +22,7 @@ import com.techhub.mapper.LikeRecordMapper;
 import com.techhub.mapper.PostMapper;
 import com.techhub.mapper.PostTagMapper;
 import com.techhub.mapper.TagMapper;
+import com.techhub.service.IHotRankService;
 import com.techhub.service.IPostService;
 import com.techhub.service.ITagService;
 import com.techhub.service.IUserService;
@@ -70,6 +72,8 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
     private StringRedisTemplate stringRedisTemplate;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private IHotRankService hotRankService;
 
     /**
      * 分页查询帖子列表(首页/搜索)
@@ -82,6 +86,13 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
      */
     @Override
     public PageResult<PostVO> getPosts(Integer pageNum, Integer pageSize, SortType sort, String keyword, Integer tagId) {
+        // 首页纯热门列表(无关键词/标签筛选)走 Redis 热度榜
+        boolean plainHot = sort == SortType.HOT
+                && (keyword == null || keyword.trim().isEmpty()) && tagId == null;
+        if (plainHot) {
+            return getHotPostsByZSet(pageNum, pageSize);
+        }
+
         LambdaQueryWrapper<Post> wrapper = new LambdaQueryWrapper<Post>()
                 .eq(Post::getStatus, POST_STATUS_PUBLISHED);
 
@@ -101,7 +112,7 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
             wrapper.in(Post::getId, postIds);
         }
 
-        // 排序:热门按热度分倒序;最新纯粹按发布时间倒序(置顶是个人主页的概念,首页不叠加)
+        // 排序:热门(带筛选时)按热度分倒序;最新纯粹按发布时间倒序
         if (sort == SortType.HOT) {
             wrapper.orderByDesc(Post::getHotScore).orderByDesc(Post::getPublishedAt);
         } else {
@@ -109,16 +120,45 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         }
 
         Page<Post> page = postMapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
-        List<Post> posts = page.getRecords();
-
         PageResult<PostVO> pageResult = new PageResult<>();
         pageResult.setTotal(page.getTotal());
         pageResult.setPageNum(page.getCurrent());
         pageResult.setPageSize(page.getSize());
+        pageResult.setRecords(assemblePostVOs(page.getRecords()));
+        return pageResult;
+    }
 
-        if (posts.isEmpty()) {
-            pageResult.setRecords(Collections.emptyList());
-            return pageResult;
+    /** 首页热门列表:从 Redis 热度榜(ZSET)取 topN 帖子ID,再回源查库组装 */
+    private PageResult<PostVO> getHotPostsByZSet(Integer pageNum, Integer pageSize) {
+        long start = (long) (pageNum - 1) * pageSize;
+        long end = start + pageSize - 1;
+        List<Long> ids = hotRankService.topPostIds(start, end);
+
+        PageResult<PostVO> result = new PageResult<>();
+        result.setTotal(hotRankService.size());
+        result.setPageNum(pageNum);
+        result.setPageSize(pageSize);
+        if (ids.isEmpty()) {
+            result.setRecords(Collections.emptyList());
+            return result;
+        }
+
+        // 回源查 DB,按热度榜顺序组装,并过滤已删除/非发布的帖子
+        Map<Long, Post> postMap = this.listByIds(ids).stream()
+                .filter(p -> p.getStatus() != null && p.getStatus() == POST_STATUS_PUBLISHED)
+                .collect(Collectors.toMap(Post::getId, p -> p));
+        List<Post> ordered = ids.stream()
+                .map(postMap::get)
+                .filter(p -> p != null)
+                .collect(Collectors.toList());
+        result.setRecords(assemblePostVOs(ordered));
+        return result;
+    }
+
+    /** 批量组装帖子 VO(作者 + 标签),供 MySQL 分页与热度榜两条路径复用 */
+    private List<PostVO> assemblePostVOs(List<Post> posts) {
+        if (posts == null || posts.isEmpty()) {
+            return Collections.emptyList();
         }
 
         // 批量查作者(避免 N+1)
@@ -153,16 +193,13 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         }
 
         // 组装 VO
-        List<PostVO> postVOs = posts.stream().map(post -> {
+        return posts.stream().map(post -> {
             PostVO postVO = new PostVO();
             BeanUtils.copyProperties(post, postVO);
             postVO.setAuthor(authorMap.get(post.getUserId()));
             postVO.setTags(postTagsVOMap.getOrDefault(post.getId(), Collections.emptyList()));
             return postVO;
         }).collect(Collectors.toList());
-
-        pageResult.setRecords(postVOs);
-        return pageResult;
     }
 
     /**
@@ -173,6 +210,16 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
      */
     @Override
     public PostVO getPostById(Long id) {
+        PostVO vo = getPostFromCacheOrDb(id);
+        if (vo != null) {
+            // 浏览 +1:累加 DB 浏览量并更新热度榜;不失效详情缓存,浏览数允许短暂延迟
+            recordView(id);
+        }
+        return vo;
+    }
+
+    /** 从缓存或数据库取帖子详情(含用户相关字段补齐) */
+    private PostVO getPostFromCacheOrDb(Long id) {
         String key = RedisConstants.POST_DETAIL_KEY_PREFIX + id;
         // 1、先查缓存
         String json = stringRedisTemplate.opsForValue().get(key);
@@ -195,6 +242,14 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
             fillUserSpecific(vo, id);
         }
         return vo;
+    }
+
+    /** 记录一次浏览:DB 浏览量原子 +1,热度榜 score 累加浏览权重 */
+    private void recordView(Long postId) {
+        postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                .eq(Post::getId, postId)
+                .setSql("view_count = view_count + 1"));
+        hotRankService.incrView(postId);
     }
 
     /** 当前用户是否已点赞该帖子 */
@@ -354,6 +409,7 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         }
         // 用户相关字段不入缓存,避免 A 用户的状态污染 B 用户
         clearUserSpecific(vo);
+        //随机TTL防止缓存雪崩
         Duration ttl = Duration.ofMinutes(RedisConstants.POST_DETAIL_TTL_MINUTES)
                 .plusSeconds(ThreadLocalRandom.current().nextInt(RedisConstants.POST_DETAIL_TTL_JITTER_SECONDS + 1));
         stringRedisTemplate.opsForValue().set(key, serialize(vo), ttl);

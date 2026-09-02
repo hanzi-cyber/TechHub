@@ -14,6 +14,7 @@ import com.techhub.entity.User;
 import com.techhub.mapper.CommentMapper;
 import com.techhub.mapper.PostMapper;
 import com.techhub.service.ICommentService;
+import com.techhub.service.IHotRankService;
 import com.techhub.service.IPostService;
 import com.techhub.service.IUserService;
 import com.techhub.vo.CommentVO;
@@ -48,6 +49,8 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
     private PostMapper postMapper;
     @Autowired
     private IPostService postService;
+    @Autowired
+    private IHotRankService hotRankService;
 
     @Override
     public PageResult<CommentVO> getCommentsByPostId(Long postId, Integer pageNum, Integer pageSize) {
@@ -163,6 +166,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
                 .setSql("comment_count = comment_count + 1"));
         // 失效帖子详情缓存,保证详情页评论数实时一致
         postService.evictPostCache(postId);
+        hotRankService.incrComment(postId);
 
         // 5、组装返回(评论者 + 被回复者)
         return buildVO(comment);
@@ -206,6 +210,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
                 .setSql("comment_count = comment_count - " + deletedCount));
         // 失效帖子详情缓存
         postService.evictPostCache(comment.getPostId());
+        hotRankService.decrComment(comment.getPostId(), deletedCount);
     }
 
     /** 批量查用户,建立 id -> UserVO 映射(去重) */

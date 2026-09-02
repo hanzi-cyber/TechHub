@@ -11,6 +11,7 @@ import com.techhub.entity.Post;
 import com.techhub.mapper.CollectRecordMapper;
 import com.techhub.mapper.PostMapper;
 import com.techhub.service.ICollectRecordService;
+import com.techhub.service.IHotRankService;
 import com.techhub.service.IPostService;
 import com.techhub.vo.CollectResultVO;
 import org.apache.ibatis.annotations.Insert;
@@ -27,6 +28,8 @@ public class CollectRecordServiceImpl extends ServiceImpl<CollectRecordMapper, C
     private PostMapper postMapper;
     @Autowired
     private IPostService postService;
+    @Autowired
+    private IHotRankService hotRankService;
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CollectResultVO collect(CollectDTO collectDTO) {
@@ -42,6 +45,7 @@ public class CollectRecordServiceImpl extends ServiceImpl<CollectRecordMapper, C
                     .eq(Post::getId,postId)
                     .setSql("collect_count = collect_count + 1"));
             postService.evictPostCache(postId);
+            hotRankService.incrCollect(postId);
         }
         return new CollectResultVO(true,readCollectCount(postId));
     }
@@ -60,6 +64,7 @@ public class CollectRecordServiceImpl extends ServiceImpl<CollectRecordMapper, C
                     .eq(Post::getId,postId)
                     .setSql("collect_count = collect_count - 1"));
             postService.evictPostCache(postId);
+            hotRankService.decrCollect(postId);
         }
         return new CollectResultVO(false,readCollectCount(postId));
     }
