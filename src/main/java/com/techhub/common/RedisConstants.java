@@ -17,6 +17,9 @@ public class RedisConstants {
     /** 帖子热度榜 ZSET key(member=帖子ID, score=加权热度) */
     public static final String POST_HOT_ZSET_KEY = "post:hot";
 
+    /** 登录态 token 缓存 key 前缀(分布式会话 / 单点登录:同一 userId 只保留一个活跃 token) */
+    public static final String LOGIN_TOKEN_KEY_PREFIX = "login:token:";
+
     /** 帖子详情缓存过期时间(分钟) */
     public static final long POST_DETAIL_TTL_MINUTES = 30;
 

@@ -3,6 +3,7 @@ package com.techhub.interceptor;
 
 import com.techhub.common.properties.JwtProperties;
 import com.techhub.context.BaseContext;
+import com.techhub.service.ILoginSessionService;
 import com.techhub.utils.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +25,8 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
 
     @Autowired
     private JwtProperties jwtProperties;
+    @Autowired
+    private ILoginSessionService loginSessionService;
 
     /**
      * 校验jwt
@@ -49,15 +52,19 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
 
         //2、校验令牌
         try {
-            log.info("jwt校验:{}", token);
             Claims claims = JwtUtil.parseJWT(jwtProperties.getUserSecretKey(), token);
             Long userId = Long.valueOf(claims.get(USER_ID).toString());
-            log.info("当前用户id：", userId);
+            //3、校验登录态:token 必须在 Redis 中且与当前活跃 token 一致(支持退出登录 / 单点登录踢下线)
+            if (!loginSessionService.isValid(userId, token)) {
+                log.info("登录态失效,userId={}", userId);
+                response.setStatus(401);
+                return false;
+            }
             BaseContext.setCurrentId(userId);
-            //3、通过，放行
+            //4、通过，放行
             return true;
         } catch (Exception ex) {
-            //4、不通过，响应401状态码
+            //5、不通过，响应401状态码
             response.setStatus(401);
             return false;
         }

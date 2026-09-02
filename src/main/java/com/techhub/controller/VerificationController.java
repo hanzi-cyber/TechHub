@@ -3,8 +3,10 @@ package com.techhub.controller;
 import com.techhub.common.Constant;
 import com.techhub.common.Result;
 import com.techhub.common.properties.JwtProperties;
+import com.techhub.context.BaseContext;
 import com.techhub.dto.LoginDTO;
 import com.techhub.dto.RegisterDTO;
+import com.techhub.service.ILoginSessionService;
 import com.techhub.service.IVerificationService;
 import com.techhub.utils.JwtUtil;
 import com.techhub.vo.LoginVO;
@@ -28,6 +30,8 @@ public class VerificationController {
     private IVerificationService verificationService;
     @Autowired
     private JwtProperties jwtProperties;
+    @Autowired
+    private ILoginSessionService loginSessionService;
 
     @PostMapping("/login")
     public Result<LoginVO> login(@RequestBody LoginDTO loginDTO){
@@ -40,6 +44,8 @@ public class VerificationController {
                 jwtProperties.getUserTtl(),
                 claims
         );
+        // 登录态写入 Redis(带过期时间),用于分布式会话 + 单点登录(新登录覆盖旧 token)
+        loginSessionService.saveToken(user.getId(), token);
 
         LoginVO loginVO = new LoginVO();
         loginVO.setUser(user);
@@ -54,6 +60,11 @@ public class VerificationController {
 
     @PostMapping("/logout")
     public Result logout(){
+        // 删除登录态,使 token 立即失效(分布式会话下所有节点共享同一份会话)
+        Long userId = BaseContext.getCurrentId();
+        if (userId != null) {
+            loginSessionService.removeToken(userId);
+        }
         return Result.success();
     }
 }
