@@ -10,6 +10,14 @@ import com.techhub.vo.PostVO;
 public interface IPostService extends IService<Post> {
     PageResult<PostVO> getPosts(Integer pageNum, Integer pageSize, SortType sort, String keyword, Integer tagId);
 
+    /**
+     * 关注流(拉模式):分页查询当前用户关注的人发布的帖子
+     *
+     * @param pageNum  页码,从1开始
+     * @param pageSize 每页条数
+     */
+    PageResult<PostVO> getFollowFeed(Integer pageNum, Integer pageSize);
+
     PostVO getPostById(Long id);
 
     PostVO createPost(SavePostDTO savePostDTO);

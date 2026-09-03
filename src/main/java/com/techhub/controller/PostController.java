@@ -35,6 +35,15 @@ public class PostController {
     }
 
     /**
+     * 关注流(拉模式):分页获取当前用户关注的人发布的帖子
+     */
+    @GetMapping("/feed")
+    public Result<PageResult<PostVO>> getFeed(@RequestParam(defaultValue = "1") Integer pageNum,
+                                              @RequestParam(defaultValue = "10") Integer pageSize) {
+        return Result.success(postService.getFollowFeed(pageNum, pageSize));
+    }
+
+    /**
      * 根据ID获取帖子详情
      * @param id
      * @return

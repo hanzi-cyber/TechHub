@@ -2,6 +2,7 @@ package com.techhub.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -152,6 +153,25 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
                 .filter(p -> p != null)
                 .collect(Collectors.toList());
         result.setRecords(assemblePostVOs(ordered));
+        return result;
+    }
+
+    /**
+     * 关注流(拉模式):实时查询我关注的人发布的帖子,按发布时间倒序。
+     * 拉模式特点:写简单(发帖不扇出)、天然一致、无脏数据;规模大后可演进为推拉结合。
+     */
+    @Override
+    public PageResult<PostVO> getFollowFeed(Integer pageNum, Integer pageSize) {
+        Long userId = BaseContext.getCurrentId();
+        if (userId == null) {
+            return emptyPage(pageNum, pageSize);
+        }
+        IPage<Post> page = postMapper.selectFeedPage(new Page<>(pageNum, pageSize), userId);
+        PageResult<PostVO> result = new PageResult<>();
+        result.setTotal(page.getTotal());
+        result.setPageNum(page.getCurrent());
+        result.setPageSize(page.getSize());
+        result.setRecords(assemblePostVOs(page.getRecords()));
         return result;
     }
 
