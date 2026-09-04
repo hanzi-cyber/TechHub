@@ -36,4 +36,7 @@ public interface IHotRankService {
 
     /** 全量重建热度榜(启动预热 / Redis 清空后恢复) */
     void rebuild();
+
+    /** 把 ZSET 热度分回写到 t_post.hot_score(定时任务调用,供带筛选的热门排序使用) */
+    void syncScoresToDb();
 }

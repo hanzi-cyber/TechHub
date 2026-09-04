@@ -1,6 +1,7 @@
 package com.techhub.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.techhub.common.RedisConstants;
 import com.techhub.entity.Post;
 import com.techhub.mapper.PostMapper;
@@ -8,6 +9,7 @@ import com.techhub.service.IHotRankService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -107,6 +109,27 @@ public class HotRankServiceImpl implements IHotRankService {
             }
         }
         log.info("热度榜重建完成,共 {} 条帖子", posts.size());
+    }
+
+    @Override
+    public void syncScoresToDb() {
+        Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
+                .reverseRangeWithScores(RedisConstants.POST_HOT_ZSET_KEY, 0, -1);
+        if (tuples == null || tuples.isEmpty()) {
+            log.info("热度榜为空,跳过 hot_score 回写");
+            return;
+        }
+        // 逐条回写 hot_score。帖子量很大时可改为单条 CASE WHEN 批量更新,这里为清晰用逐条。
+        int count = 0;
+        for (ZSetOperations.TypedTuple<String> tuple : tuples) {
+            Long postId = Long.valueOf(tuple.getValue());
+            long score = tuple.getScore() == null ? 0 : tuple.getScore().longValue();
+            postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                    .eq(Post::getId, postId)
+                    .set(Post::getHotScore, score));
+            count++;
+        }
+        log.info("hot_score 回写完成,共更新 {} 条帖子", count);
     }
 
     /** 帖子热度增减(统一入口) */
