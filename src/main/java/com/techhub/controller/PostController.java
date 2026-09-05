@@ -64,6 +64,26 @@ public class PostController {
         return Result.success(createdPost);
     }
 
+    /**
+     * 更新帖子(仅作者本人)
+     * @param id          帖子ID
+     * @param savePostDTO 新标题/正文/摘要/标签
+     */
+    @PutMapping("/{id}")
+    public Result<PostVO> updatePost(@PathVariable Long id, @RequestBody SavePostDTO savePostDTO) {
+        return Result.success(postService.updatePost(id, savePostDTO));
+    }
+
+    /**
+     * 删除帖子(仅作者本人,软删)
+     * @param id 帖子ID
+     */
+    @DeleteMapping("/{id}")
+    public Result<Void> deletePost(@PathVariable Long id) {
+        postService.deletePost(id);
+        return Result.success();
+    }
+
 
 
 

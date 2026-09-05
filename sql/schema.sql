@@ -13,7 +13,7 @@ USE `techhub`;
 CREATE TABLE `t_user` (
   `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户ID',
   `username`      VARCHAR(32)  NOT NULL                COMMENT '用户名(登录名)',
-  `password`      VARCHAR(128) NOT NULL                COMMENT '密码(bcrypt加密,不要存明文)',
+  `password`      VARCHAR(128) NOT NULL                COMMENT '密码(MD5加密,不要存明文)',
   `email`         VARCHAR(64)  DEFAULT NULL            COMMENT '邮箱',
   `phone`         VARCHAR(20)  DEFAULT NULL            COMMENT '手机号',
   `avatar_url`    VARCHAR(255) DEFAULT NULL            COMMENT '头像URL',

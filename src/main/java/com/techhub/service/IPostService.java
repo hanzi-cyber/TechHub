@@ -23,6 +23,21 @@ public interface IPostService extends IService<Post> {
     PostVO createPost(SavePostDTO savePostDTO);
 
     /**
+     * 更新帖子(仅作者本人)
+     *
+     * @param id          帖子ID
+     * @param savePostDTO 新标题/正文/摘要/标签
+     */
+    PostVO updatePost(Long id, SavePostDTO savePostDTO);
+
+    /**
+     * 删除帖子(仅作者本人,软删)
+     *
+     * @param id 帖子ID
+     */
+    void deletePost(Long id);
+
+    /**
      * 失效帖子详情缓存(帖子数据变更时调用,如点赞/收藏/评论数变化)
      *
      * @param postId 帖子ID

@@ -39,4 +39,7 @@ public interface IHotRankService {
 
     /** 把 ZSET 热度分回写到 t_post.hot_score(定时任务调用,供带筛选的热门排序使用) */
     void syncScoresToDb();
+
+    /** 从热度榜移除帖子(帖子删除时调用,避免已删帖子占用榜单) */
+    void removePost(Long postId);
 }

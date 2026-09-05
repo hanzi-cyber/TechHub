@@ -132,6 +132,14 @@ public class HotRankServiceImpl implements IHotRankService {
         log.info("hot_score 回写完成,共更新 {} 条帖子", count);
     }
 
+    @Override
+    public void removePost(Long postId) {
+        if (postId == null) {
+            return;
+        }
+        stringRedisTemplate.opsForZSet().remove(RedisConstants.POST_HOT_ZSET_KEY, String.valueOf(postId));
+    }
+
     /** 帖子热度增减(统一入口) */
     private void changeScore(Long postId, double delta) {
         if (postId == null) {

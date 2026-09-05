@@ -49,6 +49,9 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
 
     private static final int POST_STATUS_PUBLISHED = 1;
 
+    /** 帖子状态:2已删除(软删) */
+    private static final int POST_STATUS_DELETED = 2;
+
     /** 点赞目标类型:1帖子 */
     private static final int LIKE_TARGET_POST = 1;
 
@@ -348,6 +351,75 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         postVO.setAuthor(author);
         postVO.setTags(tagVOs);
         return postVO;
+    }
+
+    /**
+     * 更新帖子(仅作者本人):校验存在 + 归属,更新标题/正文/摘要,重建标签,失效缓存。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PostVO updatePost(Long id, SavePostDTO savePostDTO) {
+        Long userId = BaseContext.getCurrentId();
+        Post post = getById(id);
+        if (post == null || post.getStatus() != POST_STATUS_PUBLISHED) {
+            throw new BusinessException("帖子不存在");
+        }
+        if (!post.getUserId().equals(userId)) {
+            throw new BusinessException("无权修改他人帖子");
+        }
+
+        // 只更新标题/正文/摘要,updatedAt 由 MyMetaObjectHandler 自动填充
+        Post update = new Post();
+        update.setId(id);
+        update.setTitle(savePostDTO.getTitle());
+        update.setContent(savePostDTO.getContent());
+        update.setSummary(savePostDTO.getSummary());
+        updateById(update);
+
+        // 标签先删后插
+        updatePostTags(id, savePostDTO.getTagIds());
+
+        // 失效详情缓存,下次读回源重建
+        evictPostCache(id);
+        return buildPostVO(id);
+    }
+
+    /**
+     * 删除帖子(仅作者本人,软删:状态置 2)。同时移出热度榜、失效缓存。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deletePost(Long id) {
+        Long userId = BaseContext.getCurrentId();
+        Post post = getById(id);
+        if (post == null || post.getStatus() != POST_STATUS_PUBLISHED) {
+            throw new BusinessException("帖子不存在");
+        }
+        if (!post.getUserId().equals(userId)) {
+            throw new BusinessException("无权删除他人帖子");
+        }
+
+        post.setStatus(POST_STATUS_DELETED);
+        updateById(post);
+
+        evictPostCache(id);
+        // 从热度榜移除,避免已删帖子继续占用榜单、影响分页总数
+        hotRankService.removePost(id);
+    }
+
+    /** 重建帖子的标签关联:先删旧的,再插新的(只插入真实存在的标签) */
+    private void updatePostTags(Long postId, List<Long> tagIds) {
+        postTagMapper.delete(new LambdaQueryWrapper<PostTag>().eq(PostTag::getPostId, postId));
+        if (tagIds == null || tagIds.isEmpty()) {
+            return;
+        }
+        List<Tag> tags = tagMapper.selectBatchIds(tagIds);
+        for (Tag tag : tags) {
+            PostTag postTag = new PostTag();
+            postTag.setPostId(postId);
+            postTag.setTagId(tag.getId());
+            postTagMapper.insert(postTag);
+        }
     }
 
     /** 返回空的分页结果 */
