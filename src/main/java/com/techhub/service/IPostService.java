@@ -38,6 +38,19 @@ public interface IPostService extends IService<Post> {
     void deletePost(Long id);
 
     /**
+     * 浏览 +1:仅累加到 Redis 计数 hash(field=postId),不写 DB。
+     * 由定时任务批量回写,避免每次浏览都写 MySQL 造成写放大热点。
+     *
+     * @param postId 帖子ID
+     */
+    void incrViewCount(Long postId);
+
+    /**
+     * 把 Redis 中的浏览量增量批量回写到 t_post.view_count(定时任务调用)
+     */
+    void syncViewCountsToDb();
+
+    /**
      * 失效帖子详情缓存(帖子数据变更时调用,如点赞/收藏/评论数变化)
      *
      * @param postId 帖子ID

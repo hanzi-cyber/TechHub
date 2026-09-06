@@ -267,12 +267,51 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         return vo;
     }
 
-    /** 记录一次浏览:DB 浏览量原子 +1,热度榜 score 累加浏览权重 */
+    /** 记录一次浏览:浏览量只累加到 Redis 计数(异步批量落库),热度榜 score 同步累加浏览权重。避免每次浏览都写 MySQL 造成写放大热点 */
     private void recordView(Long postId) {
-        postMapper.update(null, new LambdaUpdateWrapper<Post>()
-                .eq(Post::getId, postId)
-                .setSql("view_count = view_count + 1"));
+        incrViewCount(postId);
         hotRankService.incrView(postId);
+    }
+
+    /** 浏览 +1:仅累加到 Redis 计数 hash(field=postId),不写 DB。由 ViewCountSyncTask 定时批量回写。 */
+    @Override
+    public void incrViewCount(Long postId) {
+        if (postId == null) {
+            return;
+        }
+        stringRedisTemplate.opsForHash().increment(RedisConstants.POST_VIEW_COUNT_KEY,
+                String.valueOf(postId), 1);
+    }
+
+    /**
+     * 把 Redis 中的浏览量增量批量回写到 t_post.view_count(定时任务调用)。
+     * 采用「读增量 → 回写 DB → 扣减已回写量」,而非读后整键删除:
+     * 回写期间新到的浏览会留在 hash 中,下个周期再回写,不丢计数。
+     * 注意:单实例下 @Scheduled 串行执行是安全的;多实例横向扩容时需加分布式锁防重复回写。
+     */
+    @Override
+    public void syncViewCountsToDb() {
+        Map<Object, Object> entries = stringRedisTemplate.opsForHash()
+                .entries(RedisConstants.POST_VIEW_COUNT_KEY);
+        if (entries == null || entries.isEmpty()) {
+            return;
+        }
+        int count = 0;
+        for (Map.Entry<Object, Object> entry : entries.entrySet()) {
+            Long postId = Long.valueOf(entry.getKey().toString());
+            long delta = Long.parseLong(entry.getValue().toString());
+            if (delta <= 0) {
+                continue;
+            }
+            postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                    .eq(Post::getId, postId)
+                    .setSql("view_count = view_count + " + delta));
+            // 只扣减本次已回写的量,回写期间新增的浏览保留在 hash 中
+            stringRedisTemplate.opsForHash().increment(RedisConstants.POST_VIEW_COUNT_KEY,
+                    String.valueOf(postId), -delta);
+            count++;
+        }
+        log.info("浏览量异步落库完成,共更新 {} 条帖子", count);
     }
 
     /** 当前用户是否已点赞该帖子 */
