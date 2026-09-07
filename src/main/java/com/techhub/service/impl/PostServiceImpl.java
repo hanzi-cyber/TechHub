@@ -34,10 +34,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -78,6 +82,8 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
     private ObjectMapper objectMapper;
     @Autowired
     private IHotRankService hotRankService;
+    @Autowired
+    private TaskScheduler taskScheduler;
 
     /**
      * 分页查询帖子列表(首页/搜索)
@@ -478,7 +484,33 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
         if (postId == null) {
             return;
         }
+        // 先更库后删缓存:若当前在事务中,延迟到事务提交后再删,
+        // 避免「事务内删缓存 → 并发读回源读到旧值重建缓存 → 事务才提交」造成缓存被旧值污染。
+        // 提交后删除之外再延迟删一次(延迟双删),兜底「提交前后有并发读用旧值重建了缓存」的极小窗口。
+        // 所有改动帖子的入口(更新/删除/点赞/收藏/评论)都走这里,统一保证缓存一致性。
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    doEvictPostCache(postId);
+                    scheduleDelayedEvict(postId);
+                }
+            });
+        } else {
+            doEvictPostCache(postId);
+            scheduleDelayedEvict(postId);
+        }
+    }
+
+    /** 实际删除缓存 */
+    private void doEvictPostCache(Long postId) {
         stringRedisTemplate.delete(RedisConstants.POST_DETAIL_KEY_PREFIX + postId);
+    }
+
+    /** 延迟双删:提交后隔一小段时间再删一次,兜底并发读回源重建旧缓存的窗口 */
+    private void scheduleDelayedEvict(Long postId) {
+        taskScheduler.schedule(() -> doEvictPostCache(postId),
+                Instant.now().plusMillis(RedisConstants.CACHE_DELAYED_EVICT_MS));
     }
 
     /** 回源查库并组装帖子 VO(不含 liked/collected 等用户相关字段) */

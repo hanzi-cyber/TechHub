@@ -43,4 +43,7 @@ public class RedisConstants {
 
     /** 抢锁最大重试次数,耗尽后直接回源兜底(不写缓存)保证可用 */
     public static final int MAX_RETRY = 3;
+
+    /** 延迟双删的延迟时间(毫秒):先更库后删缓存,提交后隔这段时间再删一次,兜底并发读回源重建旧缓存的窗口 */
+    public static final long CACHE_DELAYED_EVICT_MS = 500;
 }
