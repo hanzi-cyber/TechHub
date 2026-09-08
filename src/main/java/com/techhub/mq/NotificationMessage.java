@@ -1,4 +1,4 @@
-package com.techhub.vo;
+package com.techhub.mq;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -6,20 +6,18 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.time.LocalDateTime;
 
 /**
- * 通知返回结果
+ * 通知消息体:生产者 -> RabbitMQ -> 消费者
+ * 只携带最小必要字段,消费者据此落库
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class NotificationVO implements Serializable {
+public class NotificationMessage implements Serializable {
 
     private static final long serialVersionUID = 1L;
-
-    private Long id;
 
     /** 接收者ID */
     private Long userId;
@@ -27,22 +25,15 @@ public class NotificationVO implements Serializable {
     /** 触发者ID */
     private Long senderId;
 
-    /** 类型:1点赞 2评论 3关注 4系统 */
+    /** 通知类型:1点赞 2评论 3关注 5收藏 */
     private Integer type;
 
-    /** 目标类型:1帖子 2评论 */
+    /** 目标类型:1帖子 3用户 */
     private Integer targetType;
 
-    /** 目标ID */
+    /** 目标ID(帖子ID / 用户ID) */
     private Long targetId;
 
+    /** 通知内容(冗余快照,发送前已拼好) */
     private String content;
-
-    /** 是否已读:1是 0否 */
-    private Integer isRead;
-
-    /** 触发者信息(用户名/头像,便于列表展示) */
-    private UserVO sender;
-
-    private LocalDateTime createdAt;
 }

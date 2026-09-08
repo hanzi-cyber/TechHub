@@ -7,6 +7,7 @@ import com.techhub.entity.Follow;
 import com.techhub.entity.User;
 import com.techhub.mapper.FollowMapper;
 import com.techhub.mapper.UserMapper;
+import com.techhub.mq.NotificationProducer;
 import com.techhub.service.IFollowService;
 import com.techhub.vo.FollowResultVO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,8 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
     private FollowMapper followMapper;
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private NotificationProducer notificationProducer;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -28,6 +31,8 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
         validateTarget(userId, followeeId);
         // 原子 upsert:唯一键保证不重复插入,ON DUPLICATE KEY 保证并发安全、幂等
         followMapper.follow(userId, followeeId);
+        // 异步通知:关注通知被关注者(事务提交后投递 MQ)
+        notificationProducer.notifyFollow(followeeId, userId);
         return new FollowResultVO(true);
     }
 

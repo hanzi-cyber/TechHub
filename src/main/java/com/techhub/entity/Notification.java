@@ -28,10 +28,10 @@ public class Notification implements Serializable {
     /** 触发者ID */
     private Long senderId;
 
-    /** 1点赞 2评论 3关注 4系统通知 */
+    /** 1点赞 2评论 3关注 4系统通知 5收藏 */
     private Integer type;
 
-    /** 目标类型:1帖子 2评论 */
+    /** 目标类型:1帖子 3用户 */
     private Integer targetType;
 
     /** 目标ID(点击跳转用) */

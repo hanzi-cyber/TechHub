@@ -13,6 +13,7 @@ import com.techhub.entity.Post;
 import com.techhub.entity.User;
 import com.techhub.mapper.CommentMapper;
 import com.techhub.mapper.PostMapper;
+import com.techhub.mq.NotificationProducer;
 import com.techhub.service.ICommentService;
 import com.techhub.service.IHotRankService;
 import com.techhub.service.IPostService;
@@ -51,6 +52,8 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
     private IPostService postService;
     @Autowired
     private IHotRankService hotRankService;
+    @Autowired
+    private NotificationProducer notificationProducer;
 
     @Override
     public PageResult<CommentVO> getCommentsByPostId(Long postId, Integer pageNum, Integer pageSize) {
@@ -167,6 +170,8 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         // 失效帖子详情缓存,保证详情页评论数实时一致
         postService.evictPostCache(postId);
         hotRankService.incrComment(postId);
+        // 异步通知:一级评论通知帖子作者,楼中楼回复通知被回复者(事务提交后投递 MQ)
+        notificationProducer.notifyComment(postId, userId, comment.getContent(), replyToUserId);
 
         // 5、组装返回(评论者 + 被回复者)
         return buildVO(comment);

@@ -10,6 +10,7 @@ import com.techhub.entity.CollectRecord;
 import com.techhub.entity.Post;
 import com.techhub.mapper.CollectRecordMapper;
 import com.techhub.mapper.PostMapper;
+import com.techhub.mq.NotificationProducer;
 import com.techhub.service.ICollectRecordService;
 import com.techhub.service.IHotRankService;
 import com.techhub.service.IPostService;
@@ -30,6 +31,8 @@ public class CollectRecordServiceImpl extends ServiceImpl<CollectRecordMapper, C
     private IPostService postService;
     @Autowired
     private IHotRankService hotRankService;
+    @Autowired
+    private NotificationProducer notificationProducer;
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CollectResultVO collect(CollectDTO collectDTO) {
@@ -46,6 +49,8 @@ public class CollectRecordServiceImpl extends ServiceImpl<CollectRecordMapper, C
                     .setSql("collect_count = collect_count + 1"));
             postService.evictPostCache(postId);
             hotRankService.incrCollect(postId);
+            // 异步通知:收藏帖子通知作者(事务提交后投递 MQ)
+            notificationProducer.notifyCollect(postId, userId);
         }
         return new CollectResultVO(true,readCollectCount(postId));
     }

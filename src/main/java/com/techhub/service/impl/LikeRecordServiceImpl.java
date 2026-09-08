@@ -11,6 +11,7 @@ import com.techhub.entity.Post;
 import com.techhub.mapper.CommentMapper;
 import com.techhub.mapper.LikeRecordMapper;
 import com.techhub.mapper.PostMapper;
+import com.techhub.mq.NotificationProducer;
 import com.techhub.service.IHotRankService;
 import com.techhub.service.ILikeRecordService;
 import com.techhub.service.IPostService;
@@ -36,6 +37,8 @@ public class LikeRecordServiceImpl extends ServiceImpl<LikeRecordMapper, LikeRec
     private IPostService postService;
     @Autowired
     private IHotRankService hotRankService;
+    @Autowired
+    private NotificationProducer notificationProducer;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -49,6 +52,8 @@ public class LikeRecordServiceImpl extends ServiceImpl<LikeRecordMapper, LikeRec
         if (affected > 0) {
             updateTargetCount(likeDTO.getTargetType(), likeDTO.getTargetId(), 1);
             afterPostLikeChanged(likeDTO.getTargetType(), likeDTO.getTargetId(), true);
+            // 异步通知:赞帖子通知作者,赞评论通知评论者(事务提交后投递 MQ)
+            notificationProducer.notifyLike(likeDTO.getTargetType(), likeDTO.getTargetId(), userId);
         }
         return new LikeResultVO(true, readTargetCount(likeDTO.getTargetType(), likeDTO.getTargetId()));
     }
