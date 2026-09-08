@@ -27,7 +27,10 @@ public enum ResultCode {
     COMMENT_NOT_FOUND(3001, "评论不存在"),
 
     REPEAT_LIKE(4001, "请勿重复点赞"),
-    REPEAT_COLLECT(4002, "请勿重复收藏");
+    REPEAT_COLLECT(4002, "请勿重复收藏"),
+    REPEAT_SUBMIT(4003, "请勿重复提交"),
+
+    RATE_LIMITED(429, "操作过于频繁,请稍后再试");
 
     private final Integer code;
     private final String message;

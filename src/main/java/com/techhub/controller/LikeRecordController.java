@@ -1,5 +1,6 @@
 package com.techhub.controller;
 
+import com.techhub.annotation.RateLimit;
 import com.techhub.common.Result;
 import com.techhub.dto.LikeDTO;
 import com.techhub.service.ILikeRecordService;
@@ -18,6 +19,7 @@ public class LikeRecordController {
     /**
      * 点赞(幂等)
      */
+    @RateLimit(limit = 30, window = 60)
     @PostMapping("/like")
     public Result<LikeResultVO> like(@Valid @RequestBody LikeDTO likeDTO) {
         return Result.success(likeRecordService.like(likeDTO));
@@ -26,6 +28,7 @@ public class LikeRecordController {
     /**
      * 取消点赞(幂等)
      */
+    @RateLimit(limit = 30, window = 60)
     @DeleteMapping("/like")
     public Result<LikeResultVO> unlike(@Valid LikeDTO likeDTO) {
         return Result.success(likeRecordService.unlike(likeDTO));

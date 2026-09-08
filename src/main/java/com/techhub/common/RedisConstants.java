@@ -20,6 +20,12 @@ public class RedisConstants {
     /** 帖子浏览量计数 hash key(field=帖子ID, value=自上次落库以来的浏览增量) */
     public static final String POST_VIEW_COUNT_KEY = "post:view:count";
 
+    /** 限流计数 key 前缀(固定窗口) */
+    public static final String RATE_LIMIT_KEY_PREFIX = "rate:limit:";
+
+    /** 幂等 key 前缀 */
+    public static final String IDEMPOTENT_KEY_PREFIX = "idempotent:";
+
     /** 登录态 token 缓存 key 前缀(分布式会话 / 单点登录:同一 userId 只保留一个活跃 token) */
     public static final String LOGIN_TOKEN_KEY_PREFIX = "login:token:";
 

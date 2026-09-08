@@ -1,5 +1,7 @@
 package com.techhub.controller;
 
+import com.techhub.annotation.Idempotent;
+import com.techhub.annotation.RateLimit;
 import com.techhub.common.PageResult;
 import com.techhub.common.Result;
 import com.techhub.dto.SaveCommentDTO;
@@ -28,6 +30,8 @@ public class CommentController {
      * @param postId 帖子ID
      * @param dto    评论内容(parentId、replyToUserId、content)
      */
+    @RateLimit(limit = 10, window = 60)
+    @Idempotent
     @PostMapping("/posts/{postId}/comments")
     public Result<CommentVO> createComment(@PathVariable Long postId, @RequestBody SaveCommentDTO dto) {
         CommentVO commentVO = commentService.createComment(postId, dto);
