@@ -31,6 +31,8 @@ import com.techhub.vo.PostVO;
 import com.techhub.vo.TagVO;
 import com.techhub.vo.UserVO;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -45,6 +47,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -78,6 +81,8 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
     private CollectRecordMapper collectRecordMapper;
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+    @Autowired
+    private RedissonClient redissonClient;
     @Autowired
     private ObjectMapper objectMapper;
     @Autowired
@@ -528,15 +533,18 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
 
     /**
      * 互斥锁防击穿:抢锁 → 双检 → 回源 → 写缓存。
-     * 抢不到锁就短暂等待重试;重试耗尽直接回源兜底(不写缓存),保证可用性。
+     * 用 Redisson RLock 替代手写 SETNX:
+     * - tryLock 只指定「等待时间」、不指定 leaseTime → 看门狗 watchdog 自动续期(默认 30s),
+     *   业务重建再慢也不会因锁过期被误释放(手写 SETNX 固定 TTL 的痛点)。
+     * - RLock 可重入:同一线程可重复加锁(内部计数),需同样次数 unlock。
+     * 等锁超时则最后再查一次缓存(持锁线程可能刚重建完),仍 miss 才回源兜底,保证可用性。
      */
     private PostVO queryWithMutexLock(Long id) {
         String key = RedisConstants.POST_DETAIL_KEY_PREFIX + id;
         String lockKey = RedisConstants.POST_DETAIL_LOCK_KEY_PREFIX + id;
-        for (int i = 0; i < RedisConstants.MAX_RETRY; i++) {
-            Boolean locked = stringRedisTemplate.opsForValue()
-                    .setIfAbsent(lockKey, "1", Duration.ofSeconds(RedisConstants.LOCK_TTL_SECONDS));
-            if (Boolean.TRUE.equals(locked)) {
+        RLock lock = redissonClient.getLock(lockKey);
+        try {
+            if (lock.tryLock(RedisConstants.LOCK_WAIT_SECONDS, TimeUnit.SECONDS)) {
                 try {
                     // 双检:拿到锁的线程可能发现缓存已被别的线程重建
                     String json = stringRedisTemplate.opsForValue().get(key);
@@ -547,18 +555,17 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements IP
                     cachePost(id, vo);
                     return vo;
                 } finally {
-                    stringRedisTemplate.delete(lockKey);
+                    lock.unlock();
                 }
             }
-            // 没抢到锁,短暂等待后重试
-            try {
-                Thread.sleep(RedisConstants.RETRY_SLEEP_MS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
-        // 重试耗尽:直接回源兜底,不写缓存
+        // 等锁超时或被中断:最后再查一次缓存,仍 miss 才回源兜底(不写缓存)
+        String json = stringRedisTemplate.opsForValue().get(key);
+        if (json != null) {
+            return RedisConstants.EMPTY_CACHE_VALUE.equals(json) ? null : deserialize(json);
+        }
         return buildPostVO(id);
     }
 

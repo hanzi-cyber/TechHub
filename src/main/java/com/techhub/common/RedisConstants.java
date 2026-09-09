@@ -41,14 +41,8 @@ public class RedisConstants {
     /** 空值缓存过期时间(秒),比正常缓存短,避免真实帖子创建后长时间读不到 */
     public static final long EMPTY_CACHE_TTL_SECONDS = 60;
 
-    /** 互斥锁过期时间(秒),防止持有锁的线程宕机后锁永不释放 */
-    public static final long LOCK_TTL_SECONDS = 10;
-
-    /** 抢锁失败后的重试间隔(毫秒) */
-    public static final long RETRY_SLEEP_MS = 50;
-
-    /** 抢锁最大重试次数,耗尽后直接回源兜底(不写缓存)保证可用 */
-    public static final int MAX_RETRY = 3;
+    /** 抢锁的最长等待时间(秒):等待期间持锁线程重建缓存,拿到锁后靠「双检」命中缓存;超时则回源兜底 */
+    public static final long LOCK_WAIT_SECONDS = 2;
 
     /** 延迟双删的延迟时间(毫秒):先更库后删缓存,提交后隔这段时间再删一次,兜底并发读回源重建旧缓存的窗口 */
     public static final long CACHE_DELAYED_EVICT_MS = 500;
