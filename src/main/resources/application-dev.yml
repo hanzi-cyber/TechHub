@@ -1,0 +1,43 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 密码需和 docker-compose.yml 的 MYSQL_ROOT_PASSWORD 一致(默认 root)
+    # 不用 Docker 的话,就手动执行 sql/schema.sql 建库建表
+    url: jdbc:mysql://192.168.100.128/techhub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: root
+    password: ${DB_PASSWORD}
+    hikari:
+      # 压测/生产建议调大:HikariCP 默认最大 10,高并发线程会排队等连接导致 RT 飙升
+      maximum-pool-size: 50
+      minimum-idle: 10
+      connection-timeout: 30000
+  data:
+    redis:
+      host: 192.168.100.128
+      port: 6379
+      database: 0
+      #password: ${REDIS_PASSWORD}
+      timeout: 5s
+  rabbitmq:
+    host: 192.168.100.128
+    port: 5672
+    username: admin
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: /
+    listener:
+      simple:
+        # 手动 ack:消费者确认成功后 basicAck,失败 basicNack 不重回队列
+        acknowledge-mode: manual
+        prefetch: 10
+
+# 阿里云 OSS(头像上传)
+aliyun:
+  oss:
+    # 地域节点,杭州是 oss-cn-hangzhou.aliyuncs.com,按你实际地域改
+    endpoint: oss-cn-beijing.aliyuncs.com
+    # 控制台创建的 AccessKey:从环境变量注入,禁止明文提交到仓库。
+    # 本地在 IDEA 运行配置里设 ALIYUN_OSS_ACCESS_KEY_ID / ALIYUN_OSS_ACCESS_KEY_SECRET
+    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID}
+    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET}
+    # 存储空间名,需先在控制台创建,并设为「公共读」才能直接通过 URL 访问
+    bucket-name: techhub-image

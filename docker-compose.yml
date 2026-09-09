@@ -1,0 +1,49 @@
+# 本地开发环境一键启动:MySQL 8 + Redis 7
+# 用法:项目根目录执行  docker compose up -d
+# 停止:docker compose down (加 -v 会连数据卷一起删除)
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: techhub-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}   # 从环境变量 / 项目根目录 .env 注入
+      MYSQL_DATABASE: techhub          # 首次启动自动创建该库
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --default-time-zone=+08:00
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次启动(数据卷为空)时自动执行建表脚本
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: techhub-redis
+    restart: unless-stopped
+    # 如需 Redis 密码:把 command 换成下面带 requirepass 的那行,并同步改 application-dev.yml
+    # command: ["redis-server", "--requirepass", "123456", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql-data:
+  redis-data:
