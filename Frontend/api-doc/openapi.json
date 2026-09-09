@@ -1,0 +1,582 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TechHub 技术社区 API",
+    "version": "1.0.0",
+    "description": "TechHub 技术社区后端接口。认证方式:Bearer Token(登录后放入 Authorization 请求头)。"
+  },
+  "servers": [
+    { "url": "http://localhost:8080", "description": "本地开发" }
+  ],
+  "tags": [
+    { "name": "认证" },
+    { "name": "用户" },
+    { "name": "帖子" },
+    { "name": "评论" },
+    { "name": "互动" },
+    { "name": "关注" },
+    { "name": "通知" },
+    { "name": "标签" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["认证"],
+        "summary": "用户注册",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegisterRequest" } } }
+        },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["认证"],
+        "summary": "用户登录",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } }
+        },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_LoginResult" } } } } }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["认证"],
+        "summary": "退出登录",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      }
+    },
+    "/api/user/me": {
+      "get": {
+        "tags": ["用户"],
+        "summary": "获取当前登录用户信息",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_User" } } } } }
+      },
+      "put": {
+        "tags": ["用户"],
+        "summary": "更新当前用户资料",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateUserRequest" } } }
+        },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_User" } } } } }
+      }
+    },
+    "/api/user/{id}": {
+      "get": {
+        "tags": ["用户"],
+        "summary": "获取用户主页信息",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_User" } } } } }
+      }
+    },
+    "/api/user/{id}/posts": {
+      "get": {
+        "tags": ["用户"],
+        "summary": "用户的帖子列表",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "pageNum", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_PostPage" } } } } }
+      }
+    },
+    "/api/user/{id}/followers": {
+      "get": {
+        "tags": ["用户"],
+        "summary": "粉丝列表",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "pageNum", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_UserPage" } } } } }
+      }
+    },
+    "/api/user/{id}/following": {
+      "get": {
+        "tags": ["用户"],
+        "summary": "关注列表",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "pageNum", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_UserPage" } } } } }
+      }
+    },
+    "/api/posts": {
+      "get": {
+        "tags": ["帖子"],
+        "summary": "帖子分页列表",
+        "parameters": [
+          { "name": "pageNum", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 10 } },
+          { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["latest", "hot"], "default": "latest" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } },
+          { "name": "tagId", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_PostPage" } } } } }
+      },
+      "post": {
+        "tags": ["帖子"],
+        "summary": "发布帖子",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SavePostRequest" } } }
+        },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Post" } } } } }
+      }
+    },
+    "/api/posts/{id}": {
+      "get": {
+        "tags": ["帖子"],
+        "summary": "帖子详情",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Post" } } } } }
+      },
+      "put": {
+        "tags": ["帖子"],
+        "summary": "编辑帖子",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SavePostRequest" } } }
+        },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Post" } } } } }
+      },
+      "delete": {
+        "tags": ["帖子"],
+        "summary": "删除帖子",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      }
+    },
+    "/api/posts/{postId}/comments": {
+      "get": {
+        "tags": ["评论"],
+        "summary": "评论列表",
+        "parameters": [
+          { "name": "postId", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "pageNum", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_CommentPage" } } } } }
+      },
+      "post": {
+        "tags": ["评论"],
+        "summary": "发表评论",
+        "parameters": [
+          { "name": "postId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateCommentRequest" } } }
+        },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Comment" } } } } }
+      }
+    },
+    "/api/comments/{id}": {
+      "delete": {
+        "tags": ["评论"],
+        "summary": "删除评论",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      }
+    },
+    "/api/like": {
+      "post": {
+        "tags": ["互动"],
+        "summary": "点赞",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LikeRequest" } } }
+        },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      },
+      "delete": {
+        "tags": ["互动"],
+        "summary": "取消点赞",
+        "parameters": [
+          { "name": "targetType", "in": "query", "required": true, "schema": { "type": "integer" } },
+          { "name": "targetId", "in": "query", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      }
+    },
+    "/api/collect": {
+      "post": {
+        "tags": ["互动"],
+        "summary": "收藏",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CollectRequest" } } }
+        },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      },
+      "delete": {
+        "tags": ["互动"],
+        "summary": "取消收藏",
+        "parameters": [
+          { "name": "postId", "in": "query", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      }
+    },
+    "/api/follow/{userId}": {
+      "post": {
+        "tags": ["关注"],
+        "summary": "关注用户",
+        "parameters": [
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      },
+      "delete": {
+        "tags": ["关注"],
+        "summary": "取消关注",
+        "parameters": [
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "tags": ["通知"],
+        "summary": "通知列表",
+        "parameters": [
+          { "name": "pageNum", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_NotificationPage" } } } } }
+      }
+    },
+    "/api/notifications/unread-count": {
+      "get": {
+        "tags": ["通知"],
+        "summary": "未读通知数",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Number" } } } } }
+      }
+    },
+    "/api/notifications/read": {
+      "put": {
+        "tags": ["通知"],
+        "summary": "标记已读",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MarkReadRequest" } } }
+        },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_Void" } } } } }
+      }
+    },
+    "/api/tags": {
+      "get": {
+        "tags": ["标签"],
+        "summary": "标签列表",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_TagArray" } } } } }
+      }
+    },
+    "/api/tags/{id}/posts": {
+      "get": {
+        "tags": ["标签"],
+        "summary": "标签下的帖子列表",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "pageNum", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Result_PostPage" } } } } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "username": { "type": "string" },
+          "email": { "type": "string" },
+          "phone": { "type": "string" },
+          "avatarUrl": { "type": "string" },
+          "bio": { "type": "string" },
+          "status": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "postCount": { "type": "integer" }
+        }
+      },
+      "Post": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "userId": { "type": "integer" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "content": { "type": "string" },
+          "status": { "type": "integer" },
+          "viewCount": { "type": "integer" },
+          "likeCount": { "type": "integer" },
+          "commentCount": { "type": "integer" },
+          "collectCount": { "type": "integer" },
+          "isTop": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "publishedAt": { "type": "string", "format": "date-time" },
+          "author": { "$ref": "#/components/schemas/User" },
+          "tags": { "type": "array", "items": { "$ref": "#/components/schemas/Tag" } }
+        }
+      },
+      "Comment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "postId": { "type": "integer" },
+          "userId": { "type": "integer" },
+          "parentId": { "type": "integer" },
+          "replyToUserId": { "type": "integer" },
+          "content": { "type": "string" },
+          "likeCount": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "userId": { "type": "integer" },
+          "senderId": { "type": "integer" },
+          "type": { "type": "integer", "description": "1点赞 2评论 3关注 4系统" },
+          "targetType": { "type": "integer", "description": "1帖子 2评论" },
+          "targetId": { "type": "integer" },
+          "content": { "type": "string" },
+          "isRead": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "LoginResult": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "PageResult_Post": {
+        "type": "object",
+        "properties": {
+          "records": { "type": "array", "items": { "$ref": "#/components/schemas/Post" } },
+          "total": { "type": "integer" },
+          "pageNum": { "type": "integer" },
+          "pageSize": { "type": "integer" }
+        }
+      },
+      "PageResult_Comment": {
+        "type": "object",
+        "properties": {
+          "records": { "type": "array", "items": { "$ref": "#/components/schemas/Comment" } },
+          "total": { "type": "integer" },
+          "pageNum": { "type": "integer" },
+          "pageSize": { "type": "integer" }
+        }
+      },
+      "PageResult_User": {
+        "type": "object",
+        "properties": {
+          "records": { "type": "array", "items": { "$ref": "#/components/schemas/User" } },
+          "total": { "type": "integer" },
+          "pageNum": { "type": "integer" },
+          "pageSize": { "type": "integer" }
+        }
+      },
+      "PageResult_Notification": {
+        "type": "object",
+        "properties": {
+          "records": { "type": "array", "items": { "$ref": "#/components/schemas/Notification" } },
+          "total": { "type": "integer" },
+          "pageNum": { "type": "integer" },
+          "pageSize": { "type": "integer" }
+        }
+      },
+      "Result_Void": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "type": "object", "nullable": true }
+        }
+      },
+      "Result_User": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "Result_Post": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "$ref": "#/components/schemas/Post" }
+        }
+      },
+      "Result_Comment": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "$ref": "#/components/schemas/Comment" }
+        }
+      },
+      "Result_LoginResult": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "$ref": "#/components/schemas/LoginResult" }
+        }
+      },
+      "Result_PostPage": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "$ref": "#/components/schemas/PageResult_Post" }
+        }
+      },
+      "Result_CommentPage": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "$ref": "#/components/schemas/PageResult_Comment" }
+        }
+      },
+      "Result_UserPage": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "$ref": "#/components/schemas/PageResult_User" }
+        }
+      },
+      "Result_NotificationPage": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "$ref": "#/components/schemas/PageResult_Notification" }
+        }
+      },
+      "Result_Number": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "type": "integer", "example": 3 }
+        }
+      },
+      "Result_TagArray": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "成功" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Tag" } }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "email": { "type": "string" }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "bio": { "type": "string" },
+          "avatarUrl": { "type": "string" }
+        }
+      },
+      "SavePostRequest": {
+        "type": "object",
+        "required": ["title", "content"],
+        "properties": {
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "summary": { "type": "string" },
+          "tagIds": { "type": "array", "items": { "type": "integer" } }
+        }
+      },
+      "CreateCommentRequest": {
+        "type": "object",
+        "required": ["content"],
+        "properties": {
+          "content": { "type": "string" },
+          "parentId": { "type": "integer" },
+          "replyToUserId": { "type": "integer" }
+        }
+      },
+      "LikeRequest": {
+        "type": "object",
+        "required": ["targetType", "targetId"],
+        "properties": {
+          "targetType": { "type": "integer", "description": "1帖子 2评论" },
+          "targetId": { "type": "integer" }
+        }
+      },
+      "CollectRequest": {
+        "type": "object",
+        "required": ["postId"],
+        "properties": {
+          "postId": { "type": "integer" }
+        }
+      },
+      "MarkReadRequest": {
+        "type": "object",
+        "required": ["ids"],
+        "properties": {
+          "ids": { "type": "array", "items": { "type": "integer" } }
+        }
+      }
+    }
+  }
+}
